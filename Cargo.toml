@@ -4,3 +4,43 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+wgpu = "30.0.1"
+winit = "0.30.13"
+glam = { version = "0.34.1", features = ["bytemuck"] }
+bytemuck = { version = "1.25.2", features = ["derive"] }
+gltf = "1.4.1"
+log = "0.4.34"
+web-time = "1.1.0"
+# `default_fonts` bundles the fonts the GUI text is drawn with.
+egui = { version = "0.37.0", features = ["default_fonts"] }
+# Default features are off so egui-wgpu doesn't pull in wgpu's WebGL backend and egui-winit
+# doesn't pull in clipboard and link support, which this project doesn't need.
+egui-wgpu = { version = "0.37.0", default-features = false }
+egui-winit = { version = "0.37.0", default-features = false }
+
+# Dependencies only built for desktop (Windows, macOS, Linux).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pollster = "0.4.0"
+env_logger = "0.11.8"
+
+# Dependencies only built for the browser.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+js-sys = "0.3.106"
+web-sys = { version = "0.3.106", features = [
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Response",
+    "Window",
+] }
+console_error_panic_hook = "0.1.7"
+console_log = "1.0.0"
+
+# Optimize dependencies even in debug builds. Without this, glTF image decoding and wgpu's
+# validation run slowly enough in debug that loading Sponza takes a long time. Your own code
+# still builds unoptimized, so it stays easy to step through in a debugger.
+[profile.dev.package."*"]
+opt-level = 3
