@@ -28,7 +28,6 @@ const _: () = assert!(size_of::<CameraUniforms>() == 16 * 4);
 
 impl CameraUniforms {
     pub fn set_view_proj_mat(&mut self, mat: Mat4) {
-        // TODO-1.1: set `self.view_proj_mat` to the input `mat`
         self.view_proj_mat = mat;
     }
 
@@ -58,13 +57,6 @@ impl Camera {
     pub const FAR_PLANE: f32 = 1000.0;
 
     pub fn new(gpu: &Gpu) -> Self {
-        // TODO-1.1: set `uniforms_buffer` to a new buffer of size `size_of::<CameraUniforms>()`
-        // make sure the usage is `wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST`
-        // since we will be copying to this buffer
-        // check lights.rs for examples of using `gpu.device.create_buffer()`
-        //
-        // note that you can add more fields (e.g. inverse proj matrix) to `CameraUniforms` in
-        // later parts of the assignment
         let uniforms_buffer: wgpu::Buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera uniforms buffer"),
             size: size_of::<CameraUniforms>() as wgpu::BufferAddress,
@@ -191,12 +183,10 @@ impl Camera {
         let look_pos = self.camera_pos + self.camera_front * 1.0;
         let view_mat = view::look_at_mat4(self.camera_pos, look_pos, Vec3::Y);
         let view_proj_mat = self.proj_mat * view_mat;
-        // TODO-1.1: set `self.uniforms`'s view proj mat to the newly calculated `view_proj_mat`
         self.uniforms.set_view_proj_mat(view_proj_mat);
+
         // TODO-2: write to extra buffers needed for light clustering here
 
-        // TODO-1.1: upload `self.uniforms` (host side) to `self.uniforms_buffer` (device side)
-        // check lights.rs for examples of using `gpu.queue.write_buffer()`
         gpu.queue.write_buffer(&self.uniforms_buffer, 0, bytemuck::bytes_of(&self.uniforms));
     }
 }

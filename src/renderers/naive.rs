@@ -21,7 +21,7 @@ impl NaiveRenderer {
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some("scene uniforms bind group layout"),
                     entries: &[
-                        // TODO-1.2: add an entry for camera uniforms at binding 0, visible to only the vertex shader, and of type `Uniform`
+                        // cameraUniforms
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
                             visibility: wgpu::ShaderStages::VERTEX,
@@ -51,10 +51,6 @@ impl NaiveRenderer {
             label: Some("scene uniforms bind group"),
             layout: &scene_uniforms_bind_group_layout,
             entries: &[
-                // TODO-1.2: add an entry for camera uniforms at binding 0
-                // you can access the camera using `camera`
-                // if you run into type errors, you're probably trying to bind the host-side
-                // `camera.uniforms` instead of the GPU buffer
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: camera.uniforms_buffer.as_entire_binding(),
@@ -195,7 +191,6 @@ impl Renderer for NaiveRenderer {
             });
             render_pass.set_pipeline(&self.pipeline);
 
-            // TODO-1.2: bind `self.scene_uniforms_bind_group` to index `shaders::BIND_GROUP_SCENE`
             render_pass.set_bind_group(
                 shaders::BIND_GROUP_SCENE, 
                 &self.scene_uniforms_bind_group, 
