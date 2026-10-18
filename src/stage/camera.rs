@@ -29,6 +29,7 @@ const _: () = assert!(size_of::<CameraUniforms>() == 16 * 4);
 impl CameraUniforms {
     pub fn set_view_proj_mat(&mut self, mat: Mat4) {
         // TODO-1.1: set `self.view_proj_mat` to the input `mat`
+        self.view_proj_mat = mat;
     }
 
     // TODO-2: add extra functions to set values needed for light clustering here
@@ -64,12 +65,12 @@ impl Camera {
         //
         // note that you can add more fields (e.g. inverse proj matrix) to `CameraUniforms` in
         // later parts of the assignment
-        //
-        // `todo!()` stops the program with this message when it runs. It also makes the rest
-        // of this function unreachable, so the compiler warns about that until you replace it.
-        let uniforms_buffer: wgpu::Buffer = todo!(
-            "TODO-1.1: create the camera uniforms buffer in Camera::new (src/stage/camera.rs)"
-        );
+        let uniforms_buffer: wgpu::Buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("camera uniforms buffer"),
+            size: size_of::<CameraUniforms>() as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let mut camera = Self {
             uniforms: CameraUniforms::zeroed(),
@@ -191,10 +192,11 @@ impl Camera {
         let view_mat = view::look_at_mat4(self.camera_pos, look_pos, Vec3::Y);
         let view_proj_mat = self.proj_mat * view_mat;
         // TODO-1.1: set `self.uniforms`'s view proj mat to the newly calculated `view_proj_mat`
-
+        self.uniforms.set_view_proj_mat(view_proj_mat);
         // TODO-2: write to extra buffers needed for light clustering here
 
         // TODO-1.1: upload `self.uniforms` (host side) to `self.uniforms_buffer` (device side)
         // check lights.rs for examples of using `gpu.queue.write_buffer()`
+        gpu.queue.write_buffer(&self.uniforms_buffer, 0, bytemuck::bytes_of(&self.uniforms));
     }
 }

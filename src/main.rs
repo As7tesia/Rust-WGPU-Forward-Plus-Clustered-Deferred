@@ -20,7 +20,7 @@ use app::App;
 ///
 /// `App` needs a window to create its GPU surface, and winit only creates windows once the
 /// event loop runs (in `resumed`), so the handler starts out without one.
-struct Handler {
+struct WinitHandler {
     app: Option<App>,
     /// Lets the async setup on the web hand the finished `App` back to the event loop.
     #[cfg(target_arch = "wasm32")]
@@ -29,7 +29,7 @@ struct Handler {
 
 // `ApplicationHandler<App>`: the type parameter is the "user event" type, which the web build
 // uses to deliver the `App` once its async setup is done.
-impl ApplicationHandler<App> for Handler {
+impl ApplicationHandler<App> for WinitHandler {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.app.is_some() {
             return;
@@ -138,7 +138,7 @@ fn main() {
     // Desktop: `run_app` blocks until the window closes.
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let mut handler = Handler { app: None };
+        let mut handler = WinitHandler { app: None };
         event_loop.run_app(&mut handler).expect("event loop error");
     }
 
@@ -147,7 +147,7 @@ fn main() {
     {
         use winit::platform::web::EventLoopExtWebSys;
 
-        let handler = Handler {
+        let handler = WinitHandler {
             app: None,
             proxy: Some(event_loop.create_proxy()),
         };

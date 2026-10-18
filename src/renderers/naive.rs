@@ -22,6 +22,17 @@ impl NaiveRenderer {
                     label: Some("scene uniforms bind group layout"),
                     entries: &[
                         // TODO-1.2: add an entry for camera uniforms at binding 0, visible to only the vertex shader, and of type `Uniform`
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::VERTEX,
+                            ty: wgpu::BindingType::Buffer { 
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false, 
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        
                         // lightSet
                         wgpu::BindGroupLayoutEntry {
                             binding: 1,
@@ -44,6 +55,10 @@ impl NaiveRenderer {
                 // you can access the camera using `camera`
                 // if you run into type errors, you're probably trying to bind the host-side
                 // `camera.uniforms` instead of the GPU buffer
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera.uniforms_buffer.as_entire_binding(),
+                },
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: lights.light_set_storage_buffer.as_entire_binding(),
@@ -181,6 +196,11 @@ impl Renderer for NaiveRenderer {
             render_pass.set_pipeline(&self.pipeline);
 
             // TODO-1.2: bind `self.scene_uniforms_bind_group` to index `shaders::BIND_GROUP_SCENE`
+            render_pass.set_bind_group(
+                shaders::BIND_GROUP_SCENE, 
+                &self.scene_uniforms_bind_group, 
+                &[]
+            );
 
             // Bind each node's model matrix and each material only when it changes from the
             // previous draw; `scene.draws` is sorted by material to make that rare.

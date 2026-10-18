@@ -208,9 +208,7 @@ impl Lights {
             .write_buffer(&self.time_uniform_buffer, 0, bytemuck::bytes_of(&time));
 
         // not using same encoder as render pass so this doesn't interfere with measuring actual rendering performance
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("move lights command encoder"),
             });
 
