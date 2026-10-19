@@ -22,11 +22,14 @@ pub struct CameraUniforms {
     // since `Pod` refuses structs with hidden padding.
     pub view_mat: Mat4,
     pub inv_proj_mat: Mat4,
+    
+    // for projecting light bounds onto the screen in the clustering shader.
+    pub proj_mat: Mat4,
 }
 
 // Compile-time check that the struct has the size the shader expects. Update it when you add
 // fields.
-const _: () = assert!(size_of::<CameraUniforms>() == 48 * 4);
+const _: () = assert!(size_of::<CameraUniforms>() == 64 * 4);
 
 impl CameraUniforms {
     pub fn set_view_proj_mat(&mut self, mat: Mat4) {
@@ -82,6 +85,7 @@ impl Camera {
         };
 
         camera.uniforms.inv_proj_mat = camera.proj_mat.inverse();
+        camera.uniforms.proj_mat = camera.proj_mat;
 
         camera.rotate_camera(0.0, 0.0); // set initial camera vectors
         camera
@@ -104,6 +108,7 @@ impl Camera {
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.proj_mat = Self::proj_mat_for(aspect_ratio);
         self.uniforms.inv_proj_mat = self.proj_mat.inverse();
+        self.uniforms.proj_mat = self.proj_mat;
     }
 
     pub fn on_key_event(&mut self, key: KeyCode, pressed: bool) {

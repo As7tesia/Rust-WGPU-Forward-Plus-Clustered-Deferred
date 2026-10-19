@@ -370,8 +370,6 @@ impl Lights {
             compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
         }
 
-        self.do_light_clustering(&mut encoder);
-
         gpu.queue.submit([encoder.finish()]);
     }
 }
