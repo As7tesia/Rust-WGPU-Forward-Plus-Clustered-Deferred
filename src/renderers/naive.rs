@@ -25,14 +25,13 @@ impl NaiveRenderer {
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
                             visibility: wgpu::ShaderStages::VERTEX,
-                            ty: wgpu::BindingType::Buffer { 
+                            ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false, 
+                                has_dynamic_offset: false,
                                 min_binding_size: None,
                             },
                             count: None,
                         },
-                        
                         // lightSet
                         wgpu::BindGroupLayoutEntry {
                             binding: 1,
@@ -192,9 +191,9 @@ impl Renderer for NaiveRenderer {
             render_pass.set_pipeline(&self.pipeline);
 
             render_pass.set_bind_group(
-                shaders::BIND_GROUP_SCENE, 
-                &self.scene_uniforms_bind_group, 
-                &[]
+                shaders::BIND_GROUP_SCENE,
+                &self.scene_uniforms_bind_group,
+                &[],
             );
 
             // Bind each node's model matrix and each material only when it changes from the

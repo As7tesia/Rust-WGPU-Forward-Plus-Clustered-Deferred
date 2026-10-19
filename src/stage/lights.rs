@@ -2,10 +2,11 @@ use std::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
+use wgpu::wgc::command::CommandEncoderError::ComputePass;
 
 use crate::math_util::Rng;
 use crate::renderer::Gpu;
-use crate::shaders;
+use crate::shaders::{self, CLUSTERS_SIZE};
 use crate::stage::camera::Camera;
 
 /// h in [0, 1]
@@ -43,9 +44,15 @@ pub struct Lights {
     pub light_set_storage_buffer: wgpu::Buffer,
 
     pub time_uniform_buffer: wgpu::Buffer,
+    
+    pub clusters_buffer: wgpu::Buffer,
 
     move_lights_compute_bind_group: wgpu::BindGroup,
     move_lights_compute_pipeline: wgpu::ComputePipeline,
+
+    clustering_compute_pipeline: wgpu::ComputePipeline,
+    
+    clustering_compute_bind_group: wgpu::BindGroup,
     // TODO-2: add layouts, pipelines, textures, etc. needed for light clustering here
 }
 
@@ -59,7 +66,7 @@ impl Lights {
     // needs from `camera` (e.g. `&camera.uniforms_buffer` for a bind group) while building the
     // pipelines below, and drop the leading underscore once you use it: `_camera` only tells
     // the compiler the parameter is unused on purpose for now.
-    pub fn new(gpu: &Gpu, _camera: &Camera) -> Self {
+    pub fn new(gpu: &Gpu, camera: &Camera) -> Self {
         let light_set_storage_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lights"),
             size: LIGHT_SET_HEADER_SIZE
@@ -147,13 +154,107 @@ impl Lights {
                 });
 
         // TODO-2: initialize layouts, pipelines, textures, etc. needed for light clustering here
+        
+                let clusters_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("clusters"),
+            size: CLUSTERS_SIZE as wgpu::BufferAddress,
+            // COPY_DST lets `clear_buffer` zero the per-cluster counts before each scatter pass
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let clustering_compute_bind_group_layout = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("clustering compute bind group layout"),
+            entries: &[
+                // cameraUniforms
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, 
+                        has_dynamic_offset: false, 
+                        min_binding_size: None, 
+                    },
+                    count: None,
+                },
+
+                // lightSet
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+
+                // clusterSet
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer { 
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None, 
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let clustering_compute_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("clustering compute bind group"),
+            layout: &clustering_compute_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera.uniforms_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: light_set_storage_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: clusters_buffer.as_entire_binding(),
+                }
+            ]
+        });
+
+        let clustering_compute_pipeline =
+            gpu.device
+                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: Some("clustering compute pipeline"),
+                    layout: Some(&gpu.device.create_pipeline_layout(
+                        &wgpu::PipelineLayoutDescriptor {
+                            label: Some("clustering compute pipeline layout"),
+                            bind_group_layouts: &[Some(&clustering_compute_bind_group_layout)],
+                            immediate_size: 0,
+                        },
+                    )),
+                    module: &gpu
+                        .device
+                        .create_shader_module(wgpu::ShaderModuleDescriptor {
+                            label: Some("clustering compute shader"),
+                            source: wgpu::ShaderSource::Wgsl(
+                                shaders::CLUSTERING_COMPUTE_SRC.as_str().into(),
+                            ),
+                        }),
+                    entry_point: Some("main"),
+                    compilation_options: Default::default(),
+                    cache: None,
+                });
 
         let lights = Self {
             num_lights: 500,
             light_set_storage_buffer,
             time_uniform_buffer,
+            clusters_buffer,
             move_lights_compute_bind_group,
             move_lights_compute_pipeline,
+            clustering_compute_bind_group,
+            clustering_compute_pipeline,
         };
         lights.populate_lights_buffer(gpu);
         lights.update_light_set_uniform_num_lights(gpu);
@@ -190,15 +291,24 @@ impl Lights {
         );
     }
 
-    // `#[expect(dead_code)]` silences the "never used" warning until a renderer calls this.
-    // Delete it once one does; the compiler will remind you.
-    #[expect(
-        dead_code,
-        reason = "called by Forward+ and Clustered Deferred (TODO-2)"
-    )]
-    pub fn do_light_clustering(&self, _encoder: &mut wgpu::CommandEncoder) {
+    pub fn do_light_clustering(&self, encoder: &mut wgpu::CommandEncoder) {
         // TODO-2: run the light clustering compute pass(es) here
         // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
+
+        encoder.clear_buffer(&self.clusters_buffer, 0, None);
+        // not using same encoder as render pass so this doesn't interfere with measuring actual rendering performance
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("clustering compute pass"),
+            timestamp_writes: None,
+        });
+        compute_pass.set_pipeline(&self.clustering_compute_pipeline);
+
+        compute_pass.set_bind_group(0, &self.clustering_compute_bind_group, &[]);
+
+        let workgroup_count = self
+        .num_lights
+        .div_ceil(shaders::CLUSTERING_WORKGROUP_SIZE);
+        compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
     }
 
     // CHECKITOUT: this is where the light movement compute shader is dispatched from the host
@@ -208,13 +318,16 @@ impl Lights {
             .write_buffer(&self.time_uniform_buffer, 0, bytemuck::bytes_of(&time));
 
         // not using same encoder as render pass so this doesn't interfere with measuring actual rendering performance
-        let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("move lights command encoder"),
             });
 
         // A pass borrows the encoder mutably until the pass is dropped, which also ends it (the
         // TS `computePass.end()`). The inner block drops it before `encoder.finish()`.
-        {
+        {   
+            // move lights compute pass
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("move lights compute pass"),
                 timestamp_writes: None,
@@ -228,6 +341,8 @@ impl Lights {
                 .div_ceil(shaders::MOVE_LIGHTS_WORKGROUP_SIZE);
             compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
         }
+
+        self.do_light_clustering(&mut encoder);
 
         gpu.queue.submit([encoder.finish()]);
     }

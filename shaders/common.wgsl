@@ -14,6 +14,17 @@ struct LightSet {
 
 struct CameraUniforms {
     viewProj: mat4x4f,
+    view: mat4x4f,
+    invProj: mat4x4f,
+}
+
+struct Cluster {
+    count: u32,
+    lightList: array<u32, ${maxLightsPerCluster}>,
+}
+
+struct ClusterSet {
+    clusters: array<Cluster>,
 }
 
 // CHECKITOUT: this special attenuation function ensures lights don't affect geometry outside the maximum light radius

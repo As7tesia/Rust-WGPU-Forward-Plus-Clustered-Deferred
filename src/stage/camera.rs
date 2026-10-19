@@ -17,21 +17,23 @@ use crate::renderer::{FOV_Y_DEGREES, Gpu};
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct CameraUniforms {
     pub view_proj_mat: Mat4,
-    // TODO-2: add extra fields needed for light clustering here. Follow WGSL's alignment rules
+    // TODO-2: add extra fields needed for light clusterFing here. Follow WGSL's alignment rules
     // (e.g. a vec3f is 16-byte aligned) and add explicit padding fields where WGSL would pad,
     // since `Pod` refuses structs with hidden padding.
+    pub view_mat: Mat4,
+    pub inv_proj_mat: Mat4,
 }
 
 // Compile-time check that the struct has the size the shader expects. Update it when you add
 // fields.
-const _: () = assert!(size_of::<CameraUniforms>() == 16 * 4);
+const _: () = assert!(size_of::<CameraUniforms>() == 48 * 4);
 
 impl CameraUniforms {
     pub fn set_view_proj_mat(&mut self, mat: Mat4) {
         self.view_proj_mat = mat;
     }
 
-    // TODO-2: add extra functions to set values needed for light clustering here
+    
 }
 
 pub struct Camera {
@@ -79,6 +81,8 @@ impl Camera {
             keys: HashSet::new(),
         };
 
+        camera.uniforms.inv_proj_mat = camera.proj_mat.inverse();
+
         camera.rotate_camera(0.0, 0.0); // set initial camera vectors
         camera
     }
@@ -99,6 +103,7 @@ impl Camera {
     /// computed the projection only once.
     pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
         self.proj_mat = Self::proj_mat_for(aspect_ratio);
+        self.uniforms.inv_proj_mat = self.proj_mat.inverse();
     }
 
     pub fn on_key_event(&mut self, key: KeyCode, pressed: bool) {
@@ -186,7 +191,10 @@ impl Camera {
         self.uniforms.set_view_proj_mat(view_proj_mat);
 
         // TODO-2: write to extra buffers needed for light clustering here
+        self.uniforms.view_mat = view_mat;
+        // inv_proj_mat is set in set_aspect_ratio cuz it doesn't change per frame
 
-        gpu.queue.write_buffer(&self.uniforms_buffer, 0, bytemuck::bytes_of(&self.uniforms));
+        gpu.queue
+            .write_buffer(&self.uniforms_buffer, 0, bytemuck::bytes_of(&self.uniforms));
     }
 }

@@ -1,6 +1,7 @@
 // CHECKITOUT: this file loads all the shaders and preprocesses them with some common code
 
 use std::sync::LazyLock;
+use crate::stage::camera::Camera;
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -17,6 +18,20 @@ pub const MOVE_LIGHTS_WORKGROUP_SIZE: u32 = 128;
 
 pub const LIGHT_RADIUS: f32 = 2.0;
 
+pub const GRID_RES_X: u32 = 16;
+pub const GRID_RES_Y: u32 = 8;
+pub const GRID_RES_Z: u32 = 24;
+
+pub const MAX_LIGHTS_PER_CLUSTER: u32 = 1024;
+
+pub const CLUSTERING_WORKGROUP_SIZE: u32 = 128;
+
+pub const CLUSTER_NEAR: f32 = Camera::NEAR_PLANE;
+pub const CLUSTER_FAR: f32 = Camera::FAR_PLANE;
+
+pub const CLUSTERS_SIZE: u32 = (1 + MAX_LIGHTS_PER_CLUSTER) * 4 
+                                    * GRID_RES_X * GRID_RES_Y * GRID_RES_Z;
+
 /// The names shaders use for the constants above, as in `@group(${bindGroup_scene})`.
 fn shader_constants() -> Vec<(&'static str, String)> {
     vec![
@@ -29,7 +44,16 @@ fn shader_constants() -> Vec<(&'static str, String)> {
         ),
         // f32 formats without a trailing ".0" when it's a whole number ("2"), which WGSL
         // reads as an abstract number, the same as the TypeScript version produced.
-        ("lightRadius", LIGHT_RADIUS.to_string()),
+        ("lightRadius", LIGHT_RADIUS.to_string()),  
+
+        ("gridResX", GRID_RES_X.to_string()),
+        ("gridResY", GRID_RES_Y.to_string()),
+        ("gridResZ", GRID_RES_Z.to_string()),
+        ("maxLightsPerCluster", MAX_LIGHTS_PER_CLUSTER.to_string()),
+        ("clusterLightsWorkgroupSize", CLUSTERING_WORKGROUP_SIZE.to_string()),
+
+        ("clusterNear", format!("{:?}", CLUSTER_NEAR)),
+        ("clusterFar", format!("{:?}", CLUSTER_FAR)),
     ]
 }
 
@@ -81,7 +105,6 @@ pub static NAIVE_VERT_SRC: LazyLock<String> =
 pub static NAIVE_FRAG_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/naive.fs.wgsl")));
 
-#[expect(dead_code, reason = "used by Forward+ (TODO-2)")]
 pub static FORWARD_PLUS_FRAG_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/forward_plus.fs.wgsl")));
 
@@ -103,6 +126,6 @@ pub static CLUSTERED_DEFERRED_FULLSCREEN_FRAG_SRC: LazyLock<String> = LazyLock::
 
 pub static MOVE_LIGHTS_COMPUTE_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/move_lights.cs.wgsl")));
-#[expect(dead_code, reason = "used by light clustering (TODO-2)")]
+
 pub static CLUSTERING_COMPUTE_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/clustering.cs.wgsl")));
