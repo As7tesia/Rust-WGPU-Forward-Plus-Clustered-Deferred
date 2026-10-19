@@ -2,11 +2,10 @@ use std::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
-use wgpu::wgc::command::CommandEncoderError::ComputePass;
 
 use crate::math_util::Rng;
 use crate::renderer::Gpu;
-use crate::shaders::{self, CLUSTERS_SIZE};
+use crate::shaders;
 use crate::stage::camera::Camera;
 
 /// h in [0, 1]
@@ -45,7 +44,10 @@ pub struct Lights {
 
     pub time_uniform_buffer: wgpu::Buffer,
     
-    pub clusters_buffer: wgpu::Buffer,
+    /// One u32 light count per cluster, zeroed before every clustering pass.
+    pub cluster_counts_buffer: wgpu::Buffer,
+    /// `MAX_LIGHTS_PER_CLUSTER` light index slots per cluster.
+    pub cluster_light_indices_buffer: wgpu::Buffer,
 
     move_lights_compute_bind_group: wgpu::BindGroup,
     move_lights_compute_pipeline: wgpu::ComputePipeline,
@@ -155,11 +157,19 @@ impl Lights {
 
         // TODO-2: initialize layouts, pipelines, textures, etc. needed for light clustering here
         
-                let clusters_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("clusters"),
-            size: CLUSTERS_SIZE as wgpu::BufferAddress,
-            // COPY_DST lets `clear_buffer` zero the per-cluster counts before each scatter pass
+        let cluster_counts_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("cluster counts"),
+            size: shaders::CLUSTER_COUNTS_SIZE,
+            // COPY_DST lets `clear_buffer` zero the counts before each scatter pass
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Not cleared: slots past a cluster's count are never read.
+        let cluster_light_indices_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("cluster light indices"),
+            size: shaders::CLUSTER_LIGHT_INDICES_SIZE,
+            usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
 
@@ -189,14 +199,26 @@ impl Lights {
                     count: None,
                 },
 
-                // clusterSet
+                // clusterCounts
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer { 
+                    ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
-                        min_binding_size: None, 
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+
+                // clusterLightIndices
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -217,8 +239,12 @@ impl Lights {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: clusters_buffer.as_entire_binding(),
-                }
+                    resource: cluster_counts_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: cluster_light_indices_buffer.as_entire_binding(),
+                },
             ]
         });
 
@@ -250,7 +276,8 @@ impl Lights {
             num_lights: 500,
             light_set_storage_buffer,
             time_uniform_buffer,
-            clusters_buffer,
+            cluster_counts_buffer,
+            cluster_light_indices_buffer,
             move_lights_compute_bind_group,
             move_lights_compute_pipeline,
             clustering_compute_bind_group,
@@ -295,7 +322,8 @@ impl Lights {
         // TODO-2: run the light clustering compute pass(es) here
         // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
 
-        encoder.clear_buffer(&self.clusters_buffer, 0, None);
+        // Only the counts need zeroing
+        encoder.clear_buffer(&self.cluster_counts_buffer, 0, None);
         // not using same encoder as render pass so this doesn't interfere with measuring actual rendering performance
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("clustering compute pass"),

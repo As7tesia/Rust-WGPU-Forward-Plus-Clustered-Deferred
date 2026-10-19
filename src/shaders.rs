@@ -29,8 +29,13 @@ pub const CLUSTERING_WORKGROUP_SIZE: u32 = 128;
 pub const CLUSTER_NEAR: f32 = Camera::NEAR_PLANE;
 pub const CLUSTER_FAR: f32 = Camera::FAR_PLANE;
 
-pub const CLUSTERS_SIZE: u32 = (1 + MAX_LIGHTS_PER_CLUSTER) * 4 
-                                    * GRID_RES_X * GRID_RES_Y * GRID_RES_Z;
+pub const NUM_CLUSTERS: u32 = GRID_RES_X * GRID_RES_Y * GRID_RES_Z;
+
+// SOA instead of AOS cuz our access pattern is cooked for AOS
+pub const CLUSTER_COUNTS_SIZE: wgpu::BufferAddress = NUM_CLUSTERS as wgpu::BufferAddress * 4;
+
+pub const CLUSTER_LIGHT_INDICES_SIZE: wgpu::BufferAddress =
+    NUM_CLUSTERS as wgpu::BufferAddress * MAX_LIGHTS_PER_CLUSTER as wgpu::BufferAddress * 4;
 
 /// The names shaders use for the constants above, as in `@group(${bindGroup_scene})`.
 fn shader_constants() -> Vec<(&'static str, String)> {
