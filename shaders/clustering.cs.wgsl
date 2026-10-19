@@ -1,5 +1,3 @@
-// TODO-2: implement the light clustering compute shader
-//
 // Scatter: one thread per light, appending the light to every cluster its sphere touches. The
 // counts are zeroed by `clear_buffer` before this pass (see `Lights::do_light_clustering`).
 //

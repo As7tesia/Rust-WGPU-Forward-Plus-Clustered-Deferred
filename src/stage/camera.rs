@@ -17,9 +17,8 @@ use crate::renderer::{FOV_Y_DEGREES, Gpu};
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct CameraUniforms {
     pub view_proj_mat: Mat4,
-    // TODO-2: add extra fields needed for light clusterFing here. Follow WGSL's alignment rules
-    // (e.g. a vec3f is 16-byte aligned) and add explicit padding fields where WGSL would pad,
-    // since `Pod` refuses structs with hidden padding.
+    // New fields follow WGSL's alignment rules (e.g. a vec3f is 16-byte aligned), with explicit
+    // padding fields where WGSL would pad, since `Pod` refuses structs with hidden padding.
     pub view_mat: Mat4,
     pub inv_proj_mat: Mat4,
     
@@ -195,7 +194,6 @@ impl Camera {
         let view_proj_mat = self.proj_mat * view_mat;
         self.uniforms.set_view_proj_mat(view_proj_mat);
 
-        // TODO-2: write to extra buffers needed for light clustering here
         self.uniforms.view_mat = view_mat;
         // inv_proj_mat is set in set_aspect_ratio cuz it doesn't change per frame
 

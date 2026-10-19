@@ -10,8 +10,6 @@ use crate::stage::scene::Scene;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 
 pub struct ForwardPlusRenderer {
-    // TODO-2: add layouts, pipelines, textures, etc. needed for Forward+ here
-    // you may need extra uniforms such as the camera view matrix and the canvas resolution
     scene_uniforms_bind_group: wgpu::BindGroup,
 
     depth_texture_view: wgpu::TextureView,
@@ -21,8 +19,6 @@ pub struct ForwardPlusRenderer {
 
 impl ForwardPlusRenderer {
     pub fn new(gpu: &Gpu, camera: &Camera, lights: &Lights) -> Self {
-        // TODO-2: initialize layouts, pipelines, textures, etc. needed for Forward+ here
-        // (shader sources are in `crate::shaders`)
         let scene_uniforms_bind_group_layout =
             gpu.device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -202,7 +198,6 @@ impl Renderer for ForwardPlusRenderer {
         // The pass borrows `encoder` until it is dropped at the end of this block, which ends
         // the pass (the TS `renderPass.end()`).
         {
-            // call lights compuite pass
             lights.do_light_clustering(&mut encoder);
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -269,7 +264,6 @@ impl Renderer for ForwardPlusRenderer {
         gpu.queue.submit([encoder.finish()]);
     }
 
-    // TODO-2: override `on_resize` to recreate any textures that match the window size
     fn on_resize(&mut self, gpu: &Gpu) {
         self.depth_texture_view = create_depth_texture_view(gpu);
     }

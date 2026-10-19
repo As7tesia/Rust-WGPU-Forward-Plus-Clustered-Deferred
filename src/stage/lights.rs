@@ -55,7 +55,6 @@ pub struct Lights {
     clustering_compute_pipeline: wgpu::ComputePipeline,
     
     clustering_compute_bind_group: wgpu::BindGroup,
-    // TODO-2: add layouts, pipelines, textures, etc. needed for light clustering here
 }
 
 impl Lights {
@@ -64,10 +63,6 @@ impl Lights {
 
     pub const LIGHT_INTENSITY: f32 = 0.1;
 
-    // The TS version stored the camera for use in light clustering. Here, take what clustering
-    // needs from `camera` (e.g. `&camera.uniforms_buffer` for a bind group) while building the
-    // pipelines below, and drop the leading underscore once you use it: `_camera` only tells
-    // the compiler the parameter is unused on purpose for now.
     pub fn new(gpu: &Gpu, camera: &Camera) -> Self {
         let light_set_storage_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lights"),
@@ -155,8 +150,6 @@ impl Lights {
                     cache: None,
                 });
 
-        // TODO-2: initialize layouts, pipelines, textures, etc. needed for light clustering here
-        
         let cluster_counts_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("cluster counts"),
             size: shaders::CLUSTER_COUNTS_SIZE,
@@ -319,12 +312,10 @@ impl Lights {
     }
 
     pub fn do_light_clustering(&self, encoder: &mut wgpu::CommandEncoder) {
-        // TODO-2: run the light clustering compute pass(es) here
-        // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
+        // Lives in Lights so Forward+ and Clustered Deferred can share it
 
         // Only the counts need zeroing
         encoder.clear_buffer(&self.cluster_counts_buffer, 0, None);
-        // not using same encoder as render pass so this doesn't interfere with measuring actual rendering performance
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("clustering compute pass"),
             timestamp_writes: None,
