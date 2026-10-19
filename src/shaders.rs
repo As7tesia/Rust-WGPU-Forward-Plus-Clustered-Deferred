@@ -24,7 +24,7 @@ pub const GRID_RES_X: u32 = 16;
 pub const GRID_RES_Y: u32 = 8;
 pub const GRID_RES_Z: u32 = 24;
 
-pub const MAX_LIGHTS_PER_CLUSTER: u32 = 1024;
+pub const MAX_LIGHTS_PER_CLUSTER: u32 = 2048;
 
 pub const CLUSTERING_WORKGROUP_SIZE: u32 = 128;
 
