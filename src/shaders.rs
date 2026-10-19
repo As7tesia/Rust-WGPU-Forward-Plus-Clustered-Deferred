@@ -13,6 +13,8 @@ use crate::stage::camera::Camera;
 pub const BIND_GROUP_SCENE: u32 = 0;
 pub const BIND_GROUP_MODEL: u32 = 1;
 pub const BIND_GROUP_MATERIAL: u32 = 2;
+// Only the Clustered Deferred fullscreen pass, which has no model or material groups.
+pub const BIND_GROUP_GBUFFER: u32 = 1;
 
 pub const MOVE_LIGHTS_WORKGROUP_SIZE: u32 = 128;
 
@@ -43,6 +45,7 @@ fn shader_constants() -> Vec<(&'static str, String)> {
         ("bindGroup_scene", BIND_GROUP_SCENE.to_string()),
         ("bindGroup_model", BIND_GROUP_MODEL.to_string()),
         ("bindGroup_material", BIND_GROUP_MATERIAL.to_string()),
+        ("bindGroup_gBuffer", BIND_GROUP_GBUFFER.to_string()),
         (
             "moveLightsWorkgroupSize",
             MOVE_LIGHTS_WORKGROUP_SIZE.to_string(),
@@ -97,34 +100,34 @@ fn process_shader_raw(raw: &str) -> String {
     common_src + &eval_shader_raw(raw)
 }
 
+/// Like `process_shader_raw`, with cluster_lighting.wgsl (the clustering output bindings and the
+/// clustered lighting loop) between common.wgsl and the shader.
+fn process_cluster_lit_shader_raw(raw: &str) -> String {
+    process_shader_raw(&(include_str!("../shaders/cluster_lighting.wgsl").to_owned() + raw))
+}
+
 // `include_str!` embeds each file into the executable at compile time, so shader edits take
 // effect on the next `cargo run` (which rebuilds), not while the program is running.
 // `LazyLock` runs the preprocessing the first time a shader is used, then keeps the result.
-//
-// `#[expect(dead_code)]` silences the "never used" warning for shaders whose renderer you
-// haven't written yet. Once you use one, the compiler warns that the expectation is
-// unfulfilled; delete the attribute then.
 
 pub static NAIVE_VERT_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/naive.vs.wgsl")));
 pub static NAIVE_FRAG_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/naive.fs.wgsl")));
 
-pub static FORWARD_PLUS_FRAG_SRC: LazyLock<String> =
-    LazyLock::new(|| process_shader_raw(include_str!("../shaders/forward_plus.fs.wgsl")));
+pub static FORWARD_PLUS_FRAG_SRC: LazyLock<String> = LazyLock::new(|| {
+    process_cluster_lit_shader_raw(include_str!("../shaders/forward_plus.fs.wgsl"))
+});
 
-#[expect(dead_code, reason = "used by Clustered Deferred (TODO-3)")]
 pub static CLUSTERED_DEFERRED_FRAG_SRC: LazyLock<String> =
     LazyLock::new(|| process_shader_raw(include_str!("../shaders/clustered_deferred.fs.wgsl")));
-#[expect(dead_code, reason = "used by Clustered Deferred (TODO-3)")]
 pub static CLUSTERED_DEFERRED_FULLSCREEN_VERT_SRC: LazyLock<String> = LazyLock::new(|| {
     process_shader_raw(include_str!(
         "../shaders/clustered_deferred_fullscreen.vs.wgsl"
     ))
 });
-#[expect(dead_code, reason = "used by Clustered Deferred (TODO-3)")]
 pub static CLUSTERED_DEFERRED_FULLSCREEN_FRAG_SRC: LazyLock<String> = LazyLock::new(|| {
-    process_shader_raw(include_str!(
+    process_cluster_lit_shader_raw(include_str!(
         "../shaders/clustered_deferred_fullscreen.fs.wgsl"
     ))
 });
